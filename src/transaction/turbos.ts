@@ -1,0 +1,52 @@
+import {
+  Transaction,
+  TransactionArgument,
+  TransactionObjectArgument,
+} from "@mysten/sui/transactions"
+import { AggregatorClient, CLOCK_ADDRESS, Dex, Path } from ".."
+
+export class Turbos implements Dex {
+  private versioned: string
+
+  constructor() {
+    this.versioned =
+      "0xf1cf0e81048df168ebeb1b8030fad24b3e0b53ae827c25053fff0779c1445b6f"
+  }
+
+  async swap(
+    client: AggregatorClient,
+    txb: Transaction,
+    path: Path,
+    inputCoin: TransactionObjectArgument
+  ): Promise<TransactionObjectArgument> {
+    const { direction, from, target } = path
+
+    const [func, coinAType, coinBType] = direction
+      ? ["swap_a2b", from, target]
+      : ["swap_b2a", target, from]
+
+    if (path.extendedDetails == null) {
+      throw new Error("Extended details not supported")
+    } else {
+      if (path.extendedDetails.turbosFeeType == null) {
+        throw new Error("Turbos fee type not supported")
+      }
+    }
+
+    const args = [
+      txb.object(client.configObject),
+      txb.object(path.id),
+      inputCoin,
+      txb.object(CLOCK_ADDRESS),
+      txb.object(this.versioned),
+    ]
+
+    const res = txb.moveCall({
+      target: `${client.publishedAt}::turbos::${func}`,
+      typeArguments: [coinAType, coinBType, path.extendedDetails.turbosFeeType],
+      arguments: args,
+    }) as TransactionObjectArgument
+
+    return res
+  }
+}
